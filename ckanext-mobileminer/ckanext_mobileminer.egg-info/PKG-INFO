@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: ckanext-mobileminer
+Version: 0.1
+Summary: Facilitates the MobileMiner app talking to Ckan.
+Home-page: UNKNOWN
+Author: Giles Greenway
+Author-email: giles.greenway@kcl.ac.uk
+License: Apache Version 2.0
+Description: 
+            
+Platform: UNKNOWN

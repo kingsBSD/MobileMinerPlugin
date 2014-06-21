@@ -1,0 +1,11 @@
+setup.py
+ckanext/__init__.py
+ckanext/mobileminer/__init__.py
+ckanext/mobileminer/plugin.py
+ckanext_mobileminer.egg-info/PKG-INFO
+ckanext_mobileminer.egg-info/SOURCES.txt
+ckanext_mobileminer.egg-info/dependency_links.txt
+ckanext_mobileminer.egg-info/entry_points.txt
+ckanext_mobileminer.egg-info/namespace_packages.txt
+ckanext_mobileminer.egg-info/not-zip-safe
+ckanext_mobileminer.egg-info/top_level.txt
