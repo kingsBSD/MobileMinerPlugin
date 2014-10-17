@@ -25,5 +25,9 @@ setup(
     entry_points='''
         [ckan.plugins]
         mobileminer=ckanext.mobileminer.plugin:MobileMinerPlugin
+	[paste.paster_command]
+	mobileminer = ckanext.mobileminer.commands:MinerCommands
+	[ckan.celery_task]
+	tasks=ckanext.mobileminer.tasks:task_imports
     ''',
 )
