@@ -7,7 +7,10 @@ import sys
 from datetime import datetime
 from ckan.lib.celery_app import celery
 import base
-from db import select, all_the_mnc
+from db import select, all_the_mnc, get_users
+
+local = base.get_local()
+resources = base.get_resources()
 
 class MinerCommands(Command):
     summary = "--NO SUMMARY--"
@@ -42,8 +45,10 @@ class MinerCommands(Command):
 
         if action == 'pushcells':
             self.push_cells()
-          
             
+        if action == 'gsmtest':
+            self.gsm_test()
+                       
     def minertables(self):
         
         log = ConfigParser.SafeConfigParser()
@@ -60,7 +65,7 @@ class MinerCommands(Command):
             data = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes'] ])
             package = self.local.action.package_create(**data)
             package_id = package['id']
-        
+                
             logfile = open('config.log','w')
             log = ConfigParser.SafeConfigParser()
             log.add_section('package')
@@ -217,7 +222,17 @@ class MinerCommands(Command):
                         local.action.datastore_upsert(resource_id=resources['gsmlocation'],records=[rendered_cell],method='insert')
             last_mcc = mcc
             last_mnc = mnc
-                    
+            
+    def gsm_test(self):
+        location_resource = resources.get('gsmlocation')
+        cell_filter = lambda c: dict([ (key,int(c[key])) for key in ['mcc','mnc','lac','cid'] ])
+        location_getter = lambda c: local.action.datastore_search(resource_id=location_resource,filters=cell_filter(c))['records']
+        
+        for uid in get_users():
+            sql_query = select(['mcc','mnc','lac','cid'],'gsmcell',eq={'uid':uid},ne={'cid':'None'})
+            cells = local.action.datastore_search_sql(sql=sql_query)['records']
+            hits = len(filter(lambda c: len(c) > 0, [ location_getter(cell) for cell in cells ]))
+            print "User " + str(uid) + " has " + str(len(cells)) + " cells, of which " + str(hits) + " have locations."
                     
 
            

@@ -16,11 +16,11 @@ def value_comp(table,field,value,op='='):
 
 def select(fields,table,eq={},gt={},lt={},ge={},ne={},where=False,group=False,having=False,order=False,page=False,page_size=128,distinct=True):
     clauses = []
-    where_clause = group_clause = having_clause = page_clause = False  
+    where_clause = group_clause = having_clause = order_clause = page_clause = False  
     for condition,op in [ (eq,'='), (gt,'>'), (lt,'<'), (ge,'>='), (ne,'!=') ]:
         clauses += [ value_comp(table,item[0],item[1],op) for item in condition.items() ]
     if where:
-        clauses.append(where)
+        clauses += where
     if clauses:
         where_clause = 'WHERE ' + ' AND '.join(clauses)
     if distinct:
@@ -33,12 +33,16 @@ def select(fields,table,eq={},gt={},lt={},ge={},ne={},where=False,group=False,ha
         having_clause = 'HAVING ' + having
     if page:
         page_clause = 'LIMIT ' + str(page_size) + ' OFFSET ' + str(page*page_size)
-
-    return ' '.join([ s for s in [selecter,','.join(fields),'FROM',quotify(resources.get(table)),where_clause,group_clause,having_clause, page_clause] if s ])
+    if order:
+        order_clause = 'ORDER BY ' + order
+    return ' '.join([ s for s in [selecter,','.join(fields),'FROM',quotify(resources.get(table)),where_clause,group_clause,having_clause, page_clause, order_clause] if s ])
 
 def all_the_mcc():
     return [ record['mcc'] for record in local.action.datastore_search_sql(sql=select(['mcc'],'gsmcell',ne={'mcc':'None'}))['records'] ]
 
 def all_the_mnc(mcc):
     return [ record['mnc'] for record in local.action.datastore_search_sql(sql=select(['mnc'],'gsmcell',eq={'mcc':mcc}))['records'] ]
+
+def get_users():
+    return [ r['uid'] for r in local.action.datastore_search(resource_id=resources.get('user'))['records'] ]
  

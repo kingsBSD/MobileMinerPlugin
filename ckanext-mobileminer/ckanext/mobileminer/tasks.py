@@ -9,6 +9,8 @@ from datetime import datetime
 import requests
 import json
 
+from st_cluster import cluster
+
 def task_imports():
   return ['ckanext.mobileminer.tasks']
 
@@ -52,7 +54,7 @@ def build_user_apps():
         #print uid
         for table,field in [('socket','process'),('networktraffic','process'),('notification','package')]:
             ex_query = field+' NOT IN (' + select(['process'],'userapps',eq={'uid':uid}) + ')'
-            sql_query = select([field],table,eq={'uid':uid},where=ex_query)
+            sql_query = select([field],table,eq={'uid':uid},where=[ex_query])
             #print sql_query
             records = [ {'uid':uid,'process':r[field]} for r in local.action.datastore_search_sql(sql=sql_query)['records'] ]
             local.action.datastore_upsert(resource_id=resources['userapps'],records=records,method='insert')
@@ -130,7 +132,7 @@ def gsm_update():
                     page = 0
                     while searching:
                         ex_query = 'cid NOT IN (' + select(['cid::text'],'gsmlocation',eq=eq) + ')'
-                        sql_query = select(['cid'],'gsmcell',eq=eq,where=ex_query,page=page)
+                        sql_query = select(['cid'],'gsmcell',eq=eq,where=[ex_query],page=page)
 
                         cells = [ r['cid'] for r in local.action.datastore_search_sql(sql=sql_query)['records'] ]
                         if len(cells) == 0:
@@ -169,9 +171,44 @@ def user_cells():
                 local.action.datastore_upsert(resource_id = resources['userlocations'],
                     records = [ {'uid':user['uid'], 'count':user['count'], 'cid':ref, 'lat':lat, 'lon':lon} for user in users ],
                     method = 'insert')
+                
+@celery.task(name = "NAME.cellclusters")
+def cell_clusters():
+    
+    def cell_getter(user):
+        eq = {'uid':user}
+        page = 0
+        searching = True
+        while searching:
+            query = 'SELECT t2.lat, t2.lon, t1.time FROM "' + resources['gsmcell'] + '" AS t1 JOIN "' + resources['gsmlocation'] + '" AS t2 '
+            query += 'ON t1.mcc = t2.mcc::text AND t1.mnc = t2.mnc::text AND t1.lac = t2.lac::text AND t1.cid = t2.cid::text WHERE t1.uid = ' + user
+            query += ' ORDER BY t1.time LIMIT 256 OFFSET '+ str(page*256)
+            cells = local.action.datastore_search_sql(sql=query)['records']
+            print str(user)+' '+str(len(cells))
+            #print str(len(cells))+' '+str(user)
+            if len(cells) == 0:
+                searching = False
+            else:
+                page += 1
+            last_time =''
+            for cell in cells:
+                if cell['time'] <> last_time:
+                    yield (float(cell['lat']),float(cell['lon']),dateutil.parser.parse(cell['time']))
+                last_time = cell['time']        
+             
+    for uid in get_users():
+        cluster_resource = resources['gsmclusters']
+        clusters = cluster(cell_getter(uid))
+        print "Found " + str(len(clusters)) + " clusters for user " + str(uid)
+        if len(clusters) > 0:
+            map(lambda c: c.update({'uid':uid}),clusters)
+            local.action.datastore_delete(resource_id=cluster_resource,filters={'uid':uid})
+            local.action.datastore_upsert(resource_id=cluster_resource,records=clusters,method='insert')
+            
+            
 
-                
-                
+        
+
                 
                 
             
