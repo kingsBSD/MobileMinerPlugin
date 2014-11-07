@@ -17,25 +17,20 @@ tables = config.get('settings','tables').split(',') + config.get('settings','non
 table_field_types = dict([ (table,dict(zip(config.get(table,'fields').split(','),config.get(table,'field_types').split(',')))) for table in tables ])
 
 weekdays = dict(zip(range(1,8),['Mon','Tue','Wed','Thu','Fri','Sat','Sun']))
-
-def get_log():
-    try:
-        log = ConfigParser.SafeConfigParser()
-        log.read('/etc/ckan/default/mobileminer.log')
-        return log
-    except:
-        return False
     
 def get_local():
     return ckanapi.RemoteCKAN(ckan_url,apikey=api_key)     
     
 def get_resources():
-    log = get_log()
-    if not log:
-        return []
-    else:
-        return dict(zip(log.get('package','tables').split(','), log.get('package','resources').split(',')))
+    local = get_local()
+    try:
+        return dict([ (r['name'],r['id']) for r in local.action.package_show(id='mobileminer')['resources'] ])
+    except:
+        return {}
     
+def get_package_id():
+    local = get_local()
+    return local.action.package_show(id='mobileminer')['id']
 
 
 

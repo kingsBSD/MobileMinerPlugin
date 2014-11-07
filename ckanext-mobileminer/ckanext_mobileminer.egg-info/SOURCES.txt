@@ -1,7 +1,12 @@
 setup.py
 ckanext/__init__.py
 ckanext/mobileminer/__init__.py
+ckanext/mobileminer/base.py
+ckanext/mobileminer/commands.py
+ckanext/mobileminer/db.py
 ckanext/mobileminer/plugin.py
+ckanext/mobileminer/st_cluster.py
+ckanext/mobileminer/tasks.py
 ckanext_mobileminer.egg-info/PKG-INFO
 ckanext_mobileminer.egg-info/SOURCES.txt
 ckanext_mobileminer.egg-info/dependency_links.txt

@@ -9,8 +9,6 @@ from ckan.lib.celery_app import celery
 import base
 from db import select, all_the_mnc, get_users
 
-local = base.get_local()
-resources = base.get_resources()
 
 class MinerCommands(Command):
     summary = "--NO SUMMARY--"
@@ -27,6 +25,9 @@ class MinerCommands(Command):
         self.local = ckanapi.RemoteCKAN(ckan_url,apikey=api_key)
         
         action = self.args[0]
+        
+        if action == 'init':
+            self.init()
         
         if action == 'minertables':
             self.minertables()
@@ -48,40 +49,20 @@ class MinerCommands(Command):
             
         if action == 'gsmtest':
             self.gsm_test()
-                       
+            
+        if action == 'flush':
+            self.flush()     
+    
+    def init(self):
+        pars = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes'] ])
+        self.local.action.package_create(**pars)
+        self.minertables()
+    
     def minertables(self):
         
-        log = ConfigParser.SafeConfigParser()
-        try:
-            log.read('/etc/ckan/default/mobileminer.log')
-            package_id = log.get('package','id')
-        except:
-            log = False
+        existing = base.get_resources().keys()
+        package_id = base.get_package_id()
 
-        existing = []
-        existingResources = []
-        
-        if not log:
-            data = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes'] ])
-            package = self.local.action.package_create(**data)
-            package_id = package['id']
-                
-            logfile = open('config.log','w')
-            log = ConfigParser.SafeConfigParser()
-            log.add_section('package')
-            log.set('package','id',package_id)
-            log.write(logfile)
-            logfile.close()
-          
-        else:
-            package_id = log.get('package','id')
-            try:
-                existing = log.get('package','tables').split(',')
-                existingResources = log.get('package','resources').split(',')
-            except:
-                pass
-    
-        created = []
         tables = self.config.get('settings','tables').split(',')
         non_user_tables = self.config.get('settings','non_user_tables').split(',')
     
@@ -96,18 +77,8 @@ class MinerCommands(Command):
             fields = [ {'id':field[0], 'type':field[1]} for field in zip(fieldNames,fieldTypes) ]
             if table not in existing:
                 print "Creating table: "+table
-                created.append(self.local.action.datastore_create(resource={'package_id':package_id, 'name':table}, fields=fields))
+                self.local.action.datastore_create(resource={'package_id':package_id, 'name':table }, fields=fields)
                 
-        
-        newLogFile = open('/etc/ckan/default/mobileminer.log','w')
-        newLog = ConfigParser.SafeConfigParser()
-        newLog.add_section('package')
-        newLog.set('package','id',package_id)
-        newLog.set('package', 'tables', ','.join(existing + [ table['resource']['name'] for table in created ]))
-        newLog.set('package', 'resources', ','.join(existingResources + [ table['resource_id'] for table in created ]))
-        newLog.write(newLogFile)
-        newLogFile.close()
-
     def push(self):
 
         if len(self.args) >= 3:
@@ -133,8 +104,6 @@ class MinerCommands(Command):
             infile = open(fname,'rb')
         except:
             print "Cant't open "+fname
-
-        local = base.get_local()
         
         reader = csv.reader(infile, delimiter=',')
         reader.next()
@@ -142,12 +111,19 @@ class MinerCommands(Command):
         for row in reader:
             data.append(dict(zip(fields,row[1:])))
             if len(data) == 50:
-                local.action.datastore_upsert(resource_id=res,records=data,method='insert')
-                sys.stdout.write('.')
+                self.local.action.datastore_upsert(resource_id=res,records=data,method='insert')
+                print '.',
                 data = []
         if len(data):
-            local.action.datastore_upsert(resource_id=res,records=data,method='insert')
-            
+            self.local.action.datastore_upsert(resource_id=res,records=data,method='insert')
+   
+    def flush(self):
+        table = self.args[1]
+        if table in ['user','socket','gsmcell','mobilenetwork','wifinetwork','minerlog','notification','networktraffic']:
+            return
+        resources = base.get_resources()
+        self.local.action.datastore_delete(resource_id=resources[table])
+        
     def do_task(self):
         celery.send_task("NAME."+self.args[1], task_id=str(uuid.uuid4()))
                         
@@ -157,13 +133,14 @@ class MinerCommands(Command):
         except:
             return
         
-        local = base.get_local()
         resources = base.get_resources()
         timestamp = datetime.now().isoformat()
         
-        all_the_mcc = [ record['mcc'] for record in local.action.datastore_search_sql(sql=select(['mcc'],'gsmcell',ne={'mcc':'None'}))['records'] ]
+        all_the_mcc = [ record['mcc'] for record in self.local.action.datastore_search_sql(sql=select(['mcc'],'gsmcell',ne={'mcc':'None'}))['records'] ]
         
         mnc_map = dict([ (mcc,all_the_mnc(mcc)) for mcc in all_the_mcc ])
+                
+        lac_map = {}        
                 
         #print all_the_mcc
         #print all_the_mnc
@@ -207,30 +184,42 @@ class MinerCommands(Command):
                 smnc = str(mnc)    
             if mcc in all_the_mcc:
                 if mnc in mnc_map[mcc]:
+                    lac_key = smcc+'_'+smnc
                     lac = chunks[idx['lac']]
-                    cid = chunks[idx['cid']]
-                    eq = {'mcc':mcc,'mnc':mnc,'lac':lac,'cid':cid}
-                    ex_query = 'cid NOT IN (' + select(['cid::text'],'gsmlocation',eq=eq) + ')'
-                    sql_query = select(['cid'],'gsmcell',eq=eq,where=ex_query)
-                    insert = len(local.action.datastore_search_sql(sql=sql_query)['records']) > 0
-                    if insert:
-                        found += 1
-                        sfound = str(found)
-                        rendered_cell = {'mcc':mcc, 'mnc':mnc, 'lac':lac, 'cid':cid, 'lat':chunks[idx['lat']], 'lon':chunks[idx['lon']],
-                            'changeable':change(chunks[idx['changeable']]), 'retrieved':timestamp}
-                        print "Found: "+','.join([ rendered_cell[f] for f in ['mcc','mnc','lac','cid'] ])
-                        local.action.datastore_upsert(resource_id=resources['gsmlocation'],records=[rendered_cell],method='insert')
+                    if not lac_map.get(lac_key,False):
+                        sql_query = select(['lac'],'gsmcell',eq={'mcc':smcc,'mnc':smnc})
+                        lac_map[lac_key] = dict([ (r['lac'],True) for r in self.local.action.datastore_search_sql(sql=sql_query)['records'] ])
+                    if lac_map[lac_key].get(lac,False):
+                        cid = chunks[idx['cid']]
+                        ex_eq = {'mcc':mcc,'mnc':mnc,'lac':lac,'cid':cid}
+                        ex_query = 'cid NOT IN (' + select(['cid::text'],'gsmlocation',eq=ex_eq) + ')'
+                        eq = {'mcc':smcc,'mnc':smnc,'lac':str(lac),'cid':str(cid)}
+                        sql_query = select(['cid'],'gsmcell',eq=eq,where=[ex_query])
+                        #sql_query = select(['cid'],'gsmcell',eq=eq)
+                        #try:
+                        insert = len(self.local.action.datastore_search_sql(sql=sql_query)['records']) > 0
+                        #except:
+                        #    sql_query = select(['cid'],'gsmcell',eq=eq)
+                        #    insert = len(self.local.action.datastore_search_sql(sql=sql_query)['records']) > 0
+                            
+                        if insert:
+                            found += 1
+                            sfound = str(found)
+                            rendered_cell = {'mcc':mcc, 'mnc':mnc, 'lac':lac, 'cid':cid, 'lat':chunks[idx['lat']], 'lon':chunks[idx['lon']],
+                                'changeable':change(chunks[idx['changeable']]), 'retrieved':timestamp}
+                            print "Found: "+','.join([ rendered_cell[f] for f in ['mcc','mnc','lac','cid'] ])
+                            self.local.action.datastore_upsert(resource_id=resources['gsmlocation'],records=[rendered_cell],method='insert')
             last_mcc = mcc
             last_mnc = mnc
             
     def gsm_test(self):
         location_resource = resources.get('gsmlocation')
         cell_filter = lambda c: dict([ (key,int(c[key])) for key in ['mcc','mnc','lac','cid'] ])
-        location_getter = lambda c: local.action.datastore_search(resource_id=location_resource,filters=cell_filter(c))['records']
+        location_getter = lambda c: self.local.action.datastore_search(resource_id=location_resource,filters=cell_filter(c))['records']
         
         for uid in get_users():
             sql_query = select(['mcc','mnc','lac','cid'],'gsmcell',eq={'uid':uid},ne={'cid':'None'})
-            cells = local.action.datastore_search_sql(sql=sql_query)['records']
+            cells = self.local.action.datastore_search_sql(sql=sql_query)['records']
             hits = len(filter(lambda c: len(c) > 0, [ location_getter(cell) for cell in cells ]))
             print "User " + str(uid) + " has " + str(len(cells)) + " cells, of which " + str(hits) + " have locations."
                     

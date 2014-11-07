@@ -1,15 +1,16 @@
 import base
-from db import select
+from db import select,get_weekday
 from ckan.lib.celery_app import celery
 from celery.task.sets import subtask
 from celery import group
-from itertools import chain
+from itertools import chain,groupby
 import dateutil.parser
 from datetime import datetime
 import requests
 import json
 
 from st_cluster import cluster
+from playscrape import get_app_details
 
 def task_imports():
   return ['ckanext.mobileminer.tasks']
@@ -105,6 +106,38 @@ def daily_usage_update():
 
             local.action.datastore_upsert(resource_id=resources['dailyappusage'],records=data,method='insert')
 
+#@celery.task(name = "NAME.minerusageupdate")
+#def miner_usage_update():
+    
+#    day_length = 24.0 * 3600.0
+    
+#    def get_logs(uid,gt):
+#        searching = True
+#        page = 0
+#        while searching:
+#            print select(["date_trunc('day',start)",'start','stop'],'minerlog',eq={'uid':uid},gt=gt,order='start',page=page)
+#            logs = local.action.datastore_search_sql(sql=select(["date_trunc('day',start)",'start','stop'],'minerlog',eq={'uid':uid},gt=gt,order='start',page=page))['records']
+#            if len(logs) == 0:
+#                searching = False
+#            else:
+#                for log in logs:
+#                    yield log
+#                page += 1
+            
+#    for uid in get_users():
+#        data = []
+#        max_date = local.action.datastore_search_sql(sql=select(['MAX(date)'],'dailyminerusage',eq={'uid':uid}))['records'][0]['max']
+#        if max_date:
+#            gt = {'start':'to_date('+max_date+')'}
+#        else:
+#            gt = {}
+#        for date, days in groupby(get_logs(uid,gt),lambda k: k['date_trunc']):
+#            week_day = base.weekdays[dateutil.parser.parse(date).isoweekday()]
+#            total = sum([ (dateutil.parser.parse(rec['stop'])-dateutil.parser.parse(rec['start'])).total_seconds() for rec in days ])
+#            data.append({'uid':uid, 'percentage':int(100*total/day_length), 'date':date, 'day':week_day})
+            
+#        local.action.datastore_upsert(resource_id=resources['dailyminerusage'],records=data,method='insert')
+
 @celery.task(name = "NAME.gsmupdate")
 def gsm_update():
 
@@ -171,7 +204,27 @@ def user_cells():
                 local.action.datastore_upsert(resource_id = resources['userlocations'],
                     records = [ {'uid':user['uid'], 'count':user['count'], 'cid':ref, 'lat':lat, 'lon':lon} for user in users ],
                     method = 'insert')
-                
+
+@celery.task(name = "NAME.dailygsmupdate")
+def daily_gsm_update():
+    for uid in get_users():
+        max_date = local.action.datastore_search_sql(sql=select(['MAX(date)'],'dailygsmcells',eq={'uid':uid}))['records'][0]['max']
+        if max_date:
+            gt = {'date':'to_date('+max_date+')'}
+        else:
+            gt = {}
+        searching = True
+        page = 0
+        while searching:
+            sql_query = select(['COUNT(*)',"date_trunc('day',time)"],'gsmcell',eq={'uid':uid},gt=gt,group="date_trunc('day',time)",page=page)
+            days = local.action.datastore_search_sql(sql=sql_query)['records']
+            if len(days) == 0:
+                searching = False
+            else:
+                page += 1
+                data = [ {'uid':uid, 'count':day['count'], 'date':day['date_trunc'], 'day':get_weekday(day['date_trunc']) } for day in days ]
+                local.action.datastore_upsert(resource_id=resources['dailygsmcells'],records=data,method='insert')
+               
 @celery.task(name = "NAME.cellclusters")
 def cell_clusters():
     
@@ -205,14 +258,23 @@ def cell_clusters():
             local.action.datastore_delete(resource_id=cluster_resource,filters={'uid':uid})
             local.action.datastore_upsert(resource_id=cluster_resource,records=clusters,method='insert')
             
-            
-
-        
-
-                
-                
-            
-            
-
-
-    
+@celery.task(name = "NAME.appdetails")
+def app_details():
+    app_resource = resources['appinfo']
+    page = 0
+    searching = True
+    while searching:
+        sql_query = select(['process'],'userapps',page=page)
+        apps = [ rec['process'] for rec in local.action.datastore_search_sql(sql=sql_query)['records'] ]
+        if len(apps) == 0:
+            searching = False
+        else:
+            page += 1
+        for app in apps:
+            print app
+            package = app.split(':')[0]
+            if len(local.action.datastore_search_sql(sql=select(['package'],'appinfo',eq={'package':package}))['records']) == 0:
+                print package
+                this_package = get_app_details(package)
+                if this_package:
+                    local.action.datastore_upsert(resource_id=app_resource,records=[this_package],method='insert')

@@ -1,9 +1,15 @@
 from itertools import chain
 import base
+import dateutil.parser
+
+get_weekday = lambda date: base.weekdays[dateutil.parser.parse(date).isoweekday()]
+
 resources = base.get_resources()
 local = base.get_local()
 
 quotify = lambda x: '"'+x+'"'
+
+get_weekday = lambda date: base.weekdays[dateutil.parser.parse(date).isoweekday()]
 
 def quotify_field_value(table,field,value):
     if base.table_field_types[table].get(field,'bigint') == 'text':
@@ -35,7 +41,7 @@ def select(fields,table,eq={},gt={},lt={},ge={},ne={},where=False,group=False,ha
         page_clause = 'LIMIT ' + str(page_size) + ' OFFSET ' + str(page*page_size)
     if order:
         order_clause = 'ORDER BY ' + order
-    return ' '.join([ s for s in [selecter,','.join(fields),'FROM',quotify(resources.get(table)),where_clause,group_clause,having_clause, page_clause, order_clause] if s ])
+    return ' '.join([ s for s in [selecter,','.join(fields),'FROM',quotify(resources.get(table)),where_clause,group_clause,having_clause, order_clause, page_clause] if s ])
 
 def all_the_mcc():
     return [ record['mcc'] for record in local.action.datastore_search_sql(sql=select(['mcc'],'gsmcell',ne={'mcc':'None'}))['records'] ]
