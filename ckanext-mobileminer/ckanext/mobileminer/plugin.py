@@ -1,3 +1,4 @@
+import base
 import ckanapi
 import ckan.plugins as plugins
 import ckanext.datastore.db as db
@@ -13,10 +14,11 @@ config.read('/etc/ckan/default/mobileminer.ini')
 ckan_url = config.get('settings', 'ckan_url').rstrip('/')
 api_key = config.get('settings', 'api_key')
 
-log = ConfigParser.SafeConfigParser()
-log.read('/etc/ckan/default/mobileminer.log')
+#log = ConfigParser.SafeConfigParser()
+#log.read('/etc/ckan/default/mobileminer.log')
+#resources = dict(zip(log.get('package','tables').split(','), log.get('package','resources').split(',')))
 
-resources = dict(zip(log.get('package','tables').split(','), log.get('package','resources').split(',')))
+resources = base.get_resources()
 
 @plugins.toolkit.auth_allow_anonymous_access
 def miner_auth_update(context, data_dict=None):
