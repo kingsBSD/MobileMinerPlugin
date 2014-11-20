@@ -5,7 +5,7 @@ import uuid
 import csv
 import sys
 from datetime import datetime
-from ckan.lib.celery_app import celery
+import ConfigParser
 import base
 from db import select, all_the_mnc, get_users
 
@@ -53,20 +53,34 @@ class MinerCommands(Command):
         if action == 'flush':
             self.flush()     
     
+    def push_settings(self,key,value):
+        new_config = ConfigParser.SafeConfigParser()
+        new_config.read('/etc/ckan/default/mobileminer.ini')
+        new_config.set('generated',key,value)
+        with open('/etc/ckan/default/mobileminer.ini', 'wb') as configfile:
+            new_config.write(configfile)
+    
     def init(self):
         pars = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes'] ])
-        self.local.action.package_create(**pars)
+        package_id = self.local.action.package_create(**pars)['id']
+        self.push_settings('package_id',package_id)
         self.minertables()
     
     def minertables(self):
-        
-        existing = base.get_resources().keys()
+        resources = base.get_resources()
+        existing = resources.keys()
         package_id = base.get_package_id()
+
+        new_fields = []
 
         tables = self.config.get('settings','tables').split(',')
         non_user_tables = self.config.get('settings','non_user_tables').split(',')
     
         for table in tables + non_user_tables:
+            
+            if table in existing:
+                continue
+            
             if table not in non_user_tables:
                 fieldNames = ['uid'] + self.config.get(table,'fields').split(',')
                 fieldTypes = ['bigint'] + self.config.get(table,'field_types').split(',')
@@ -75,24 +89,38 @@ class MinerCommands(Command):
                 fieldTypes = self.config.get(table,'field_types').split(',')
                 
             fields = [ {'id':field[0], 'type':field[1]} for field in zip(fieldNames,fieldTypes) ]
-            if table not in existing:
-                print "Creating table: "+table
-                self.local.action.datastore_create(resource={'package_id':package_id, 'name':table }, fields=fields)
+            print "Creating table: "+table
+            new_fields.append(self.local.action.datastore_create(resource={'package_id':package_id, 'name':table }, fields=fields))
+            
+        tables = existing + [ table['resource']['name'] for table in new_fields ]
+        res_ids = [ resources[key] for key in existing ] + [ table['resource_id'] for table in new_fields ]
+        self.push_settings('tables',','.join(tables))
+        self.push_settings('resources',','.join(res_ids))
+        print 'done'        
+       
                 
     def push(self):
 
         if len(self.args) >= 3:
-            table = self.args[1]
-            fname = self.args[2]
+            fname = self.args[1]
+            table = self.args[2]
         else:
-            print "USAGE: push <table> <csvfile>"
-            return
+            if len(self.args) == 2:
+                fname = self.args[1]
+                table = fname.split('/')[-1].split('.')[0]
+            else:    
+                print "USAGE: push <csvfile> <table>"
+                return
 
-        res = base.get_resources().get(table,False)
+        resources = base.get_resources()
+        res = base.resources.get(table,False)
         
         if not res:
-            print "No such table: "+table
-            return
+            if table in resources.values():
+                res = table
+            else:
+                print "No such table: "+table
+                return
         
         non_user_tables = self.config.get('settings','non_user_tables').split(',')
         if table not in non_user_tables:
@@ -125,6 +153,7 @@ class MinerCommands(Command):
         self.local.action.datastore_delete(resource_id=resources[table])
         
     def do_task(self):
+        from ckan.lib.celery_app import celery
         celery.send_task("NAME."+self.args[1], task_id=str(uuid.uuid4()))
                         
     def push_cells(self):

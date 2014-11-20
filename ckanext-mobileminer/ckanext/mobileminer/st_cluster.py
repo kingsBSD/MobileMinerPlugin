@@ -27,9 +27,11 @@ def vectors_from_points(points):
         d_lat = (lat-last_lat)
         d_lon = (lon-last_lon)
         
-        
-        
-        yield np.array([ lat, lon,  d_lat/dt, d_lon/dt ])
+        if dt > 0.0:        
+            yield np.array([ lat, lon,  d_lat/dt, d_lon/dt ])
+        else:
+            yield np.array([ lat, lon,  0.0, 0.0 ])
+                    
 
 def cluster(points):
     

@@ -1,4 +1,9 @@
-from ghost import Ghost
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException,NoSuchElementException
+
 from bs4 import BeautifulSoup
 
 property_getters = {'name':lambda s: s.find_all(attrs={'itemprop':'name','class':'document-title'})[0].div.text,
@@ -9,20 +14,25 @@ property_getters = {'name':lambda s: s.find_all(attrs={'itemprop':'name','class'
     'content_rating': lambda s: s.find_all(attrs={'class':'content','itemprop':'contentRating'})[0].text.strip()}
 
 def get_app_details(package):
-    gh=Ghost(wait_timeout=999)
-    page,page_name = gh.create_page()
+    page = webdriver.PhantomJS()
     url = 'https://play.google.com/store/apps/details?id='+package
     try: 
-        page_res = page.open(url,wait_onload_event=True)
+        page.get(url)
     except:
         print "Can't find: "+package
         return {}
     try:
-        page.click("button.id-view-permissions-details")
-    except:
+        button = page.find_element_by_class_name('id-view-permissions-details')
+        button.click()
+    except NoSuchElementException as nosuch:
+         print "Can't find the permission button for " + package
+    try:
+        element = WebDriverWait(page, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'permissions-heading')))
+    except TimeoutException as timeout:
+        print "Timeout waiting for permissions: " + package
         return {}
-    page.wait_for_selector("div.permissions-heading")
-    soup = BeautifulSoup(page.content)
+
+    soup = BeautifulSoup(page.page_source)
     details = dict([ (key,property_getters[key](soup)) for key in property_getters.keys() ])
     
     perm_container = soup.find_all(attrs={'class':'permissions-container'})[0]

@@ -11,8 +11,10 @@ quotify = lambda x: '"'+x+'"'
 
 get_weekday = lambda date: base.weekdays[dateutil.parser.parse(date).isoweekday()]
 
+table_field_types = base.get_field_types()
+
 def quotify_field_value(table,field,value):
-    if base.table_field_types[table].get(field,'bigint') == 'text':
+    if table_field_types[table].get(field,'bigint') == 'text':
         return "'"+str(value)+"'"
     else:
         return str(value)    

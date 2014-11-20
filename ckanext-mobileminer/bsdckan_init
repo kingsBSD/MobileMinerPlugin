@@ -1,0 +1,12 @@
+#!/bin/bash
+psql -U postgres -h db --command "CREATE USER ckan WITH SUPERUSER PASSWORD 'ckan';"
+createdb -U postgres -h db -T template0 -O ckan ckan_default -E utf-8
+psql -U postgres -h db --command "CREATE USER datastore_default WITH PASSWORD 'datastore';"
+createdb -U postgres -h db -T template0 -O ckan datastore_default -E utf-8
+source /usr/lib/ckan/default/bin/activate;cd /usr/lib/ckan/default/src/ckan/;paster --plugin=ckan datastore set-permissions -c /etc/ckan/default/ckan.ini | psql -U postgres -h db --set ON_ERROR_STOP=1
+source /usr/lib/ckan/default/bin/activate;cd /usr/lib/ckan/default/src/ckan/;paster db init -c /etc/ckan/default/ckan.ini
+source /usr/lib/ckan/default/bin/activate;cd /usr/lib/ckan/default/src/ckan/;python ../ckanext-mobileminer/miner_conf.py admin admin
+export CKAN_CONFIG=/etc/ckan/default/ckan.ini
+/usr/bin/supervisord
+
+

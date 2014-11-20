@@ -18,8 +18,7 @@ def task_imports():
 resources = base.get_resources()
 local = base.get_local()
 
-open_cell_key = base.config.get('settings', 'open_cell_key')
-open_cell_url = base.config.get('settings', 'open_cell_url')
+
 
 def get_users():
     return [ r['uid'] for r in local.action.datastore_search(resource_id=resources.get('user'))['records'] ]
@@ -28,6 +27,9 @@ def get_user_apps(uid):
     return [ r['process'] for r in local.action.datastore_search(resource_id=resources.get('userapps'), filters={'uid':uid}, sort='process')['records'] ]
     
 def get_cell(mcc,mnc,lac,cellid):
+    config = base.get_config()
+    open_cell_key = config.get('settings', 'open_cell_key')
+    open_cell_url = config.get('settings', 'open_cell_url')
     print ','.join([mcc,mnc,lac,cellid])
     payload = {'key':open_cell_key,'mcc':mcc,'mnc':mnc,'lac':lac,'cellid':cellid,'format':'json'}
     res = requests.get(open_cell_url, params=payload)
@@ -271,6 +273,8 @@ def app_details():
         else:
             page += 1
         for app in apps:
+            if app == 'uk.ac.kcl.odo.mobileminer':
+                continue
             print app
             package = app.split(':')[0]
             if len(local.action.datastore_search_sql(sql=select(['package'],'appinfo',eq={'package':package}))['records']) == 0:
