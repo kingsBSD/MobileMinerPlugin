@@ -1,4 +1,5 @@
 from paste.script.command import Command
+from ckan.logic import ValidationError 
 import ckanapi
 import ConfigParser
 import uuid
@@ -52,6 +53,12 @@ class MinerCommands(Command):
             
         if action == 'flush':
             self.flush()     
+
+        if action == 'drop_table':
+            self.drop_table()
+            
+        if action == 'refresh_tables':
+            self.refresh_tables()
     
     def push_settings(self,key,value):
         new_config = ConfigParser.SafeConfigParser()
@@ -59,12 +66,17 @@ class MinerCommands(Command):
         new_config.set('generated',key,value)
         with open('/etc/ckan/default/mobileminer.ini', 'wb') as configfile:
             new_config.write(configfile)
-    
+       
     def init(self):
         pars = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes'] ])
-        package_id = self.local.action.package_create(**pars)['id']
-        self.push_settings('package_id',package_id)
+        try:
+            package_id = self.local.action.package_create(**pars)['id']
+            self.push_settings('package_id',package_id)
+        except ValidationError as invalid:
+             if invalid.error_dict['name'][0] <> 'That URL is already in use.':
+                return
         self.minertables()
+
     
     def minertables(self):
         resources = base.get_resources()
@@ -98,6 +110,10 @@ class MinerCommands(Command):
         self.push_settings('resources',','.join(res_ids))
         print 'done'        
        
+    def refresh_tables(self):
+        tables = dict([ (r['name'],r['id']) for r in self.local.action.package_show(id='mobileminer')['resources'] ])
+        self.push_settings('tables',','.join(tables.keys()))
+        self.push_settings('resources',','.join([ tables[key] for key in tables.keys() ]))
                 
     def push(self):
 
@@ -113,7 +129,7 @@ class MinerCommands(Command):
                 return
 
         resources = base.get_resources()
-        res = base.resources.get(table,False)
+        res = resources.get(table,False)
         
         if not res:
             if table in resources.values():
@@ -138,9 +154,9 @@ class MinerCommands(Command):
         data = []
         for row in reader:
             data.append(dict(zip(fields,row[1:])))
-            if len(data) == 50:
+            if len(data) == 128:
                 self.local.action.datastore_upsert(resource_id=res,records=data,method='insert')
-                print '.',
+                #print '.',
                 data = []
         if len(data):
             self.local.action.datastore_upsert(resource_id=res,records=data,method='insert')
@@ -151,7 +167,19 @@ class MinerCommands(Command):
             return
         resources = base.get_resources()
         self.local.action.datastore_delete(resource_id=resources[table])
-        
+    
+    def drop_table(self):
+         tables = self.args[1]
+         resources = base.get_resources()
+         if tables == 'all':
+            kill = resources.values()
+         else:
+            existing = resources.keys()
+            kill = [ resources.get(tab) for tab in tables.split(',') if tab in existing ]
+         for tab in kill:
+            self.local.action.datastore_delete(resource_id=resources[tab]) 
+            
+    
     def do_task(self):
         from ckan.lib.celery_app import celery
         celery.send_task("NAME."+self.args[1], task_id=str(uuid.uuid4()))
@@ -160,6 +188,7 @@ class MinerCommands(Command):
         try:
             cell_file = open(self.args[1],'rb')
         except:
+            print "Can't open: "+self.args[1]
             return
         
         resources = base.get_resources()
@@ -182,17 +211,9 @@ class MinerCommands(Command):
         smcc = '0'
         smnc = '0'
         
-        for line in cell_file.readlines():
-            if line.split(',')[0] == 'radio':
-                idx = {'mcc':1, 'mnc':2, 'lac':3, 'cid':4, 'lon':6, 'lat':7, 'changeable':10 }
-                change = lambda x: x
-            else:
-                idx = {'mcc':0, 'mnc':1, 'lac':2, 'cid':3, 'lon':4, 'lat':5, 'changeable':7 }
-                change = lambda x: 1 if x else 0
-            break
-        cell_file.close()
-                
-        cell_file = open(self.args[1],'rb')
+        idx = {'mcc':1, 'mnc':2, 'lac':3, 'cid':4, 'lon':6, 'lat':7, 'changeable':10 }
+        change = lambda x: x
+                        
         for line in cell_file.readlines():
             if tick % 256 == 0:
                 print "Searching. MCC:" + smcc + " MNC:" + smnc + " Found: "+sfound
@@ -235,7 +256,7 @@ class MinerCommands(Command):
                             found += 1
                             sfound = str(found)
                             rendered_cell = {'mcc':mcc, 'mnc':mnc, 'lac':lac, 'cid':cid, 'lat':chunks[idx['lat']], 'lon':chunks[idx['lon']],
-                                'changeable':change(chunks[idx['changeable']]), 'retrieved':timestamp}
+                                'changeable':chunks[idx['changeable']], 'retrieved':timestamp}
                             print "Found: "+','.join([ rendered_cell[f] for f in ['mcc','mnc','lac','cid'] ])
                             self.local.action.datastore_upsert(resource_id=resources['gsmlocation'],records=[rendered_cell],method='insert')
             last_mcc = mcc

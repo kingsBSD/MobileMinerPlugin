@@ -43,9 +43,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
 	screen
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
-        nodejs \
-        npm
-RUN npm install phantomjs	
+        phantomjs
+#        nodejs \
+#        npm
+#RUN npm install phantomjs	
 	
 # Install CKAN
 RUN virtualenv $CKAN_HOME
@@ -76,6 +77,10 @@ RUN $CKAN_HOME/bin/pip install pexpect
 
 RUN $CKAN_HOME/bin/pip install "ipython[notebook]"
 RUN $CKAN_HOME/bin/pip install nltk
+RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
+        libxft-dev \
+        libfreetype6-dev \
+        libpng-dev
 RUN $CKAN_HOME/bin/pip install matplotlib
 
 ADD ckanext-mobileminer $CKAN_HOME/src/ckanext-mobileminer
@@ -86,9 +91,13 @@ RUN cp $CKAN_HOME/src/ckanext-mobileminer/mobileminer.ini $CKAN_CONFIG
 #RUN $CKAN_HOME/bin/pip install -r $CKAN_HOME/src/ckanext-mobileminer/requirements.txt
 RUN  /bin/bash -c "source $CKAN_HOME/bin/activate;cd $CKAN_HOME/src/ckanext-mobileminer; python setup.py develop"
 
+ADD data $CKAN_HOME/src/ckanext-mobileminer/data
+
 # Configure apache
 RUN ln -s $CKAN_HOME/src/ckan/contrib/docker/apache.wsgi $CKAN_CONFIG/apache.wsgi
+#RUN ln -s $CKAN_HOME/src/ckanext-mobileminer/apache.wsgi $CKAN_CONFIG/apache.wsgi
 RUN ln -s $CKAN_HOME/src/ckan/contrib/docker/apache.conf /etc/apache2/sites-available/ckan_default.conf
+#RUN ln -s $CKAN_HOME/src/ckanext-mobileminer/apache.conf /etc/apache2/sites-available/ckan_default.conf
 RUN echo "Listen 80" > /etc/apache2/ports.conf
 RUN echo 'export CKAN_CONFIG=/etc/ckan/default' >> /etc/apache2/envvars
 RUN a2ensite ckan_default
