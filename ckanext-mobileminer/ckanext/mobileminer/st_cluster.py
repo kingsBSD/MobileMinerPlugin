@@ -32,6 +32,9 @@ def vectors_from_points(points):
         else:
             yield np.array([ lat, lon,  0.0, 0.0 ])
                     
+# Licensed under the Apache License Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.txt
+
+__author__ = 'Giles Richard Greenway'
 
 def cluster(points):
     

@@ -1,8 +1,13 @@
+# Licensed under the Apache License Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.txt
+
+__author__ = 'Giles Richard Greenway'
+
 from paste.script.command import Command
 from ckan.logic import ValidationError 
 import ckanapi
 import ConfigParser
 import uuid
+import ast
 import csv
 import sys
 from datetime import datetime
@@ -26,12 +31,15 @@ class MinerCommands(Command):
         self.local = ckanapi.RemoteCKAN(ckan_url,apikey=api_key)
         
         action = self.args[0]
-        
+        import ast
         if action == 'init':
             self.init()
         
         if action == 'minertables':
             self.minertables()
+
+        if action == 'create_views':
+            self.create_views()
 
         if action == 'gsmupdate':
             celery.send_task("NAME.gsmupdate", task_id=str(uuid.uuid4()))
@@ -108,7 +116,14 @@ class MinerCommands(Command):
         res_ids = [ resources[key] for key in existing ] + [ table['resource_id'] for table in new_fields ]
         self.push_settings('tables',','.join(tables))
         self.push_settings('resources',','.join(res_ids))
+        self.local.action.resource_view_create(resource_id=resources[table],title='default view',view_type='recline_view')
         print 'done'        
+       
+    def create_views(self):
+        resources = base.get_resources()
+        for table in resources.keys():
+            self.local.action.resource_view_create(resource_id=resources[table],title='default view',view_type='recline_view')
+        
        
     def refresh_tables(self):
         tables = dict([ (r['name'],r['id']) for r in self.local.action.package_show(id='mobileminer')['resources'] ])
@@ -147,13 +162,24 @@ class MinerCommands(Command):
         try:
             infile = open(fname,'rb')
         except:
-            print "Cant't open "+fname
+            print "Can't open "+fname
+        
+        clean_text = lambda t: filter(lambda c: c == '\n' or 32 <= ord(c) <= 126,t)
+
+        
+        field_types = self.config.get(table,'field_types').split(',')
+        is_list = [ ft[-2:] == '[]' for ft in field_types ]
+        if True in is_list:
+            row_getter = lambda r: [ [ clean_text(i) for i in ast.literal_eval(e[1]) ] if is_list[e[0]] else clean_text(e[1]) 
+            for e in enumerate(r[1:]) ] 
+        else:
+            row_getter = lambda r: r[1:]
         
         reader = csv.reader(infile, delimiter=',')
         reader.next()
         data = []
         for row in reader:
-            data.append(dict(zip(fields,row[1:])))
+            data.append(dict(zip(fields,row_getter(row))))
             if len(data) == 128:
                 self.local.action.datastore_upsert(resource_id=res,records=data,method='insert')
                 #print '.',

@@ -7,10 +7,9 @@ ENV CKAN_HOME /usr/lib/ckan/default
 ENV CKAN_CONFIG /etc/ckan/default
 ENV CKAN_DATA /var/lib/ckan
 
-# Install required packages
-
 RUN apt-get -q -y update
 
+# Packages required by CKAN:
 RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
         postgresql-client-9.3 \
         python-minimal \
@@ -23,7 +22,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
         libapache2-mod-wsgi \
         postfix \
         build-essential 
-        
+
+# Packages needed to build Numpy, Sci-Kit Learn etc...        
 RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \                
         gfortran \
         gfortran-4.8 \
@@ -32,8 +32,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
         liblapack-dev \
         liblapack3 \
         libopenblas-base 
-        
+
+# Various ancilliary tools...
 RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
+        openssh-server \
 	git \ 
 	expect \
 	supervisor \
@@ -41,7 +43,20 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
 	nano \
 	lynx \
 	screen
+	
+#http://docs.docker.com/examples/running_ssh_service/
+RUN mkdir /var/run/sshd
+RUN echo 'root:password' | chpasswd
+RUN sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
+# SSH login fix. Otherwise user is kicked off after login
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+ENV NOTVISIBLE "in users profile"
+RUN echo "export VISIBLE=now" >> /etc/profile
+	
+# Scraping the PlayStore uses the headless browser PhantomJS via Selenium at the momment.
+# Might want to consider building PhantomJS from source.
 RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
         phantomjs
 #        nodejs \
@@ -57,9 +72,12 @@ RUN $CKAN_HOME/bin/pip install -e 'git+https://github.com/ckan/ckan.git#egg=ckan
 RUN $CKAN_HOME/bin/pip install -r $CKAN_HOME/src/ckan/requirements.txt
 RUN ln -s $CKAN_HOME/src/ckan/who.ini $CKAN_CONFIG/
 
+# Create then edit the CKAN config file called ckan.ini:
 RUN  /bin/bash -c "source $CKAN_HOME/bin/activate;cd $CKAN_HOME/src/ckan/;paster make-config ckan /etc/ckan/default/ckan.ini"
+# Let's serve CKAN on port 80:
 RUN sed -i "s/port.*/port = 80/g" $CKAN_CONFIG/ckan.ini
 RUN sed -i "s/<VirtualHost 0.0.0.0:8080>/<VirtualHost 0.0.0.0:80>/g" $CKAN_HOME/src/ckan/contrib/docker/apache.conf
+# Point to Solr and Postgres containers. Remember to change the Postgress password in production.
 RUN sed -i "s/sqlalchemy.url.*/sqlalchemy\.url = postgresql:\/\/ckan:ckan@db\/ckan_default/g" $CKAN_CONFIG/ckan.ini
 RUN sed -i "s/#solr_url.*/solr_url = http:\/\/solr:8983\/solr/g" $CKAN_CONFIG/ckan.ini
 RUN sed -i "s/#ckan.storage_path.*/ckan.storage_path = \/var\/lib\/ckan/g" $CKAN_CONFIG/ckan.ini
@@ -84,11 +102,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
 RUN $CKAN_HOME/bin/pip install matplotlib
 
 ADD ckanext-mobileminer $CKAN_HOME/src/ckanext-mobileminer
-RUN chmod a+x $CKAN_HOME/src/ckanext-mobileminer/bsdckan_init
 RUN cp $CKAN_HOME/src/ckanext-mobileminer/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 RUN cp $CKAN_HOME/src/ckanext-mobileminer/mobileminer.ini $CKAN_CONFIG
-#RUN $CKAN_HOME/bin/pip install -r $CKAN_HOME/src/ckanext-mobileminer/requirements.txt
 RUN  /bin/bash -c "source $CKAN_HOME/bin/activate;cd $CKAN_HOME/src/ckanext-mobileminer; python setup.py develop"
 
 ADD data $CKAN_HOME/src/ckanext-mobileminer/data
@@ -115,15 +131,18 @@ RUN ln -s $CKAN_HOME/src/ckan/contrib/docker/main.cf /etc/postfix/main.cf
 RUN chmod a+x $CKAN_HOME/src/ckanext-mobileminer/bsdckan_init
 RUN chmod a+x $CKAN_HOME/src/ckanext-mobileminer/notebook.sh
 RUN chmod a+x $CKAN_HOME/src/ckanext-mobileminer/miner_init.sh
+RUN chmod a+x $CKAN_HOME/src/ckanext-mobileminer/celery.sh
+
+RUN useradd kingsbsd
+RUN echo "kingsbsd:kingsbsd" | chpasswd
+RUN echo "root:kingsbsd" | chpasswd
 
 # Configure runit
 RUN ln -s $CKAN_HOME/src/ckan/contrib/docker/svc /etc/service
-#CMD ["/sbin/my_init"]
-#CMD ["/bin/bash -c \"/usr/local/bin/ckan_init; service apache2 start\""]
 CMD /bin/bash -c "$CKAN_HOME/src/ckanext-mobileminer/bsdckan_init"
 
 VOLUME ["/var/lib/ckan"]
-EXPOSE 80
+EXPOSE 80 22
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

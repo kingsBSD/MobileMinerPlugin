@@ -1,3 +1,7 @@
+# Licensed under the Apache License Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.txt
+
+__author__ = 'Giles Richard Greenway'
+
 import base
 from db import select,get_weekday
 from ckan.lib.celery_app import celery
@@ -281,4 +285,8 @@ def app_details():
                 print package
                 this_package = get_app_details(package)
                 if this_package:
-                    local.action.datastore_upsert(resource_id=app_resource,records=[this_package],method='insert')
+                    try:
+                        local.action.datastore_upsert(resource_id=app_resource,records=[this_package],method='insert')
+                    except:
+                        print this_package
+                    
