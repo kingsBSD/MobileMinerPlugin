@@ -255,14 +255,20 @@ def cell_clusters():
                     yield (float(cell['lat']),float(cell['lon']),dateutil.parser.parse(cell['time']))
                 last_time = cell['time']        
              
+    cluster_resource = resources['gsmclusters']
+    sequence_resource = resources['clustersequence']
+             
     for uid in get_users():
-        cluster_resource = resources['gsmclusters']
-        clusters = cluster(cell_getter(uid))
+        
+        clusters, sequence = cluster(cell_getter(uid))
         print "Found " + str(len(clusters)) + " clusters for user " + str(uid)
         if len(clusters) > 0:
             map(lambda c: c.update({'uid':uid}),clusters)
             local.action.datastore_delete(resource_id=cluster_resource,filters={'uid':uid})
             local.action.datastore_upsert(resource_id=cluster_resource,records=clusters,method='insert')
+            map(lambda c: c.update({'uid':uid}),sequence)
+            local.action.datastore_delete(resource_id=sequence_resource,filters={'uid':uid})
+            local.action.datastore_upsert(resource_id=sequence_resource,records=sequence,method='insert')
             
 @celery.task(name = "NAME.appdetails")
 def app_details():

@@ -1,3 +1,7 @@
+# Licensed under the Apache License Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.txt
+
+__author__ = 'Giles Richard Greenway'
+
 import dateutil.parser
 import time
 #import numpy as np
@@ -32,24 +36,17 @@ def vectors_from_points(points):
         else:
             yield np.array([ lat, lon,  0.0, 0.0 ])
                     
-# Licensed under the Apache License Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.txt
-
-__author__ = 'Giles Richard Greenway'
-
 def cluster(points):
     
     import numpy as np
     from sklearn import preprocessing
     from sklearn.cluster import KMeans
     
-    
     scaler = preprocessing.StandardScaler(copy=False)
     
     data_points, vector_points = tee(points)
     
     data = scaler.fit_transform(np.array([ i for i in vectors_from_points(vector_points) ]))
-    
-
     
     if data.size == 0:
         return []
@@ -69,12 +66,15 @@ def cluster(points):
                 break
     
     cluster_times = dict([(i,[]) for i in range(n_clusters) ])
+    cluster_sequence = []
     
     data_points.next()
     
-    for i, point in enumerate(data_points):    
+    for i, point in enumerate(data_points):
         cluster_times[k.labels_[i]].append(point[2])
-                
+        cluster_sequence.append({'cluster':k.labels_[i],'time':point[2]})
+    
+    
     total_days = {}
     early_hours = {}
     late_hours = {}
@@ -149,7 +149,7 @@ def cluster(points):
                 'day_range':int((max(cluster_times[i])-min(cluster_times[i])).total_seconds()/86400.0), 'total_days':total_days[i],
                 'weekdays':common_days.get(i,"None") })
             
-    return cluster_sets
+    return cluster_sets,cluster_sequence
             
  
       
