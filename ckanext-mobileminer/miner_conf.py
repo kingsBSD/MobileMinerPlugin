@@ -14,7 +14,7 @@ print "Starting a temporay CKAN server..."
 server = pexpect.spawn('paster serve /etc/ckan/default/ckan.ini')
 server.expect('\r\n')
 server.expect('\r\n')
-url = server.before.split()[-1]
+url = "http://localhost"
 
 def get_api_key():
     req = requests.post(url+'/login_generic?came_from=/user/logged_in',data={'login':user,'password':pw})

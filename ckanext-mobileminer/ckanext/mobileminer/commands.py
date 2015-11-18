@@ -76,7 +76,11 @@ class MinerCommands(Command):
             new_config.write(configfile)
        
     def init(self):
-        pars = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes'] ])
+        pars = dict([ (key,self.config.get('settings',key)) for key in ['name','title','notes','owner_org'] ])
+        try:
+            self.local.action.organization_create(**{'name':'kcl', 'title':"King's College London"})
+        except:
+            assert False
         try:
             package_id = self.local.action.package_create(**pars)['id']
             self.push_settings('package_id',package_id)
