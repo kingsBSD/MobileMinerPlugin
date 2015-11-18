@@ -72,10 +72,25 @@ RUN $CKAN_HOME/bin/pip install -e 'git+https://github.com/ckan/ckan.git#egg=ckan
 RUN $CKAN_HOME/bin/pip install -r $CKAN_HOME/src/ckan/requirements.txt
 RUN ln -s $CKAN_HOME/src/ckan/who.ini $CKAN_CONFIG/
 
+ADD requirements.txt $CKAN_HOME/
+RUN $CKAN_HOME/bin/pip install -r $CKAN_HOME/requirements.txt
+
+RUN $CKAN_HOME/bin/pip install pexpect
+
+RUN $CKAN_HOME/bin/pip install functools32 jupyter
+RUN $CKAN_HOME/bin/pip install nltk
+RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
+        libxft-dev \
+        libfreetype6-dev \
+        libpng-dev
+RUN $CKAN_HOME/bin/pip install matplotlib
+
 # Create then edit the CKAN config file called ckan.ini:
 RUN  /bin/bash -c "source $CKAN_HOME/bin/activate;cd $CKAN_HOME/src/ckan/;paster make-config ckan /etc/ckan/default/ckan.ini"
 # Let's serve CKAN on port 80:
 RUN sed -i "s/port.*/port = 80/g" $CKAN_CONFIG/ckan.ini
+RUN sed -i "s/ckan.site_url\s=.*/ckan.site_url = http:\/\/localhost/g" $CKAN_CONFIG/ckan.ini
+RUN sed -i "s/ckan.auth.create_dataset_if_not_in_organization\s=\sfalse/ckan.auth.create_dataset_if_not_in_organization = true/g" $CKAN_CONFIG/ckan.ini 
 RUN sed -i "s/<VirtualHost 0.0.0.0:8080>/<VirtualHost 0.0.0.0:80>/g" $CKAN_HOME/src/ckan/contrib/docker/apache.conf
 # Point to Solr and Postgres containers. Remember to change the Postgress password in production.
 RUN sed -i "s/sqlalchemy.url.*/sqlalchemy\.url = postgresql:\/\/ckan:ckan@db\/ckan_default/g" $CKAN_CONFIG/ckan.ini
@@ -88,24 +103,19 @@ RUN sed -i '/^ckan.plugins.*/ s/$/ datastore mobileminer/' $CKAN_CONFIG/ckan.ini
 RUN sed -i "s/#ckan.datastore.write_url.*/ckan.datastore.write_url = postgresql:\/\/ckan:ckan@db\/datastore_default/g" $CKAN_CONFIG/ckan.ini
 RUN sed -i "s/#ckan.datastore.read_url.*/ckan.datastore.read_url = postgresql:\/\/datastore_default:datastore@db\/datastore_default/g" $CKAN_CONFIG/ckan.ini
 
-ADD requirements.txt $CKAN_HOME/
-RUN $CKAN_HOME/bin/pip install -r $CKAN_HOME/requirements.txt
-
-RUN $CKAN_HOME/bin/pip install pexpect
-
-RUN $CKAN_HOME/bin/pip install "ipython[notebook]"
-RUN $CKAN_HOME/bin/pip install nltk
-RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y --fix-missing install \
-        libxft-dev \
-        libfreetype6-dev \
-        libpng-dev
-RUN $CKAN_HOME/bin/pip install matplotlib
+# Why can't you create organizations without this path being writable?
+RUN mkdir -p /var/lib/ckan/storage/uploads
+RUN chmod -R a+rw /var/lib/ckan/storage/uploads
 
 ADD ckanext-mobileminer $CKAN_HOME/src/ckanext-mobileminer
 RUN cp $CKAN_HOME/src/ckanext-mobileminer/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 RUN cp $CKAN_HOME/src/ckanext-mobileminer/mobileminer.ini $CKAN_CONFIG
 RUN  /bin/bash -c "source $CKAN_HOME/bin/activate;cd $CKAN_HOME/src/ckanext-mobileminer; python setup.py develop"
+
+RUN cd $CKAN_HOME && git clone https://github.com/coreylynch/pyFM.git
+RUN $CKAN_HOME/bin/pip install Cython
+RUN cd $CKAN_HOME/pyFM/ && $CKAN_HOME/bin/python setup.py build_ext --inplace
 
 ADD data $CKAN_HOME/src/ckanext-mobileminer/data
 
