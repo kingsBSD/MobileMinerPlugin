@@ -14,6 +14,7 @@ You can read more about the data it collected and what was done with it in:
 - [Research on Online Digital Cultures - Community Extraction and Analysis by Markov and k-Means Clustering](http://kdd.isti.cnr.it/pap2017/papers/PAP_2017_paper_3.pdf) at the [1st International Workshop on Personal Analytics and Privacy](http://kdd.isti.cnr.it/pap2017/)
 ([2017 European Conference on Machine Learning](http://ecmlpkdd2017.ijs.si/))
 
-This research was also presented at the 2015 PyData London Conference:
+This research was also [presented](https://youtu.be/hjjniizB794) at the [2015 PyData London Conference](https://pydata.org/london2015/):
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/hjjniizB794" frameborder="0" allowfullscreen></iframe>
+[![Our Data, Ourselves](https://img.youtube.com/vi/hjjniizB794/0.jpg)](https://youtu.be/hjjniizB794)
+
