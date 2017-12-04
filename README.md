@@ -10,5 +10,10 @@ You can read more about the data it collected and what was done with it in:
 
 - [Mining Mobile Youth Cultures](https://bigsocialdata.files.wordpress.com/2015/02/blanke-big-humanities-2014.pdf) at
 [The Second IEEE Big Data 2014 Workshop](https://bighumanities.net/events/ieee-bigdata-oct-2014/big-humanities-data-workshop-program/)
+([2014 IEEE International Conference on Big Data](http://ieeexplore.ieee.org/xpl/mostRecentIssue.jsp?punumber=6973861))
 - [Research on Online Digital Cultures - Community Extraction and Analysis by Markov and k-Means Clustering](http://kdd.isti.cnr.it/pap2017/papers/PAP_2017_paper_3.pdf) at the [1st International Workshop on Personal Analytics and Privacy](http://kdd.isti.cnr.it/pap2017/)
 ([2017 European Conference on Machine Learning](http://ecmlpkdd2017.ijs.si/))
+
+This research was also presented at the 2015 PyData London Conference:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/hjjniizB794" frameborder="0" allowfullscreen></iframe>
