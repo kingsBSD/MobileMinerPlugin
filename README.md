@@ -24,6 +24,6 @@ This research was also [presented](https://youtu.be/hjjniizB794)
 [![Our Data, Ourselves](https://img.youtube.com/vi/hjjniizB794/0.jpg)](https://youtu.be/hjjniizB794)
 
 Some apps were observed to "phone home" so aggresively that a [containerized suite of tools](https://github.com/kingsBSD/DroidDestructionKit) to
-teach novices Android app reversal and network traffic analysis, but that's [another story](https://www.slideshare.net/kingsBSD/droid-hacking-for-the-innocent). 
+teach novices Android app reversal and network traffic analysis was developed, but that's [another story](https://www.slideshare.net/kingsBSD/droid-hacking-for-the-innocent). 
 
 
