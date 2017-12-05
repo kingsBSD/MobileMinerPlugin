@@ -6,7 +6,7 @@ It's no longer under active deployment or development, and was written for the
 ["Our Data, Ourselves" project](https://big-social-data.net/about/) at King's College London's
 [Department of Digital Humanities](https://www.kcl.ac.uk/artshums/depts/ddh/index.aspx).
 
-It takes network socket data on a per-app basis and aggregates to produce a diary of daily usage. Cell-tower traces spatially resolved via
+It takes network socket data on a per-app basis and aggregates it to produce a diary of daily usage. Cell-tower traces spatially resolved via
 [OpenCellID](https://opencellid.org/) are clustered by k-means using scikit-learn. It was used to return the data it collected from
 our [Young Rewired State participants](https://twitter.com/youngrewired) at a
 [hackathon](https://big-social-data.net/2015/01/10/a-long-overdue-updates-on-the-success-of-our-second-hackathon/).
